@@ -210,5 +210,32 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user, migrator]) =>
         expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(100)
       })
     })
+
+    describe('trying to migrate more than what was approved', () => {
+      before(async () => {
+        await oldSub.transfer(user, 100)
+        await oldSub.approve(newSub.address, 10, { from: user })
+      })
+
+      it('should revert the transaction', async () => {
+        expect(await reverted(newSub.migrate(20, { from: user }))).to.be.true()
+      })
+    })
+
+    describe('trying to migrate more than the balance', () => {
+      before(async () => {
+        await oldSub.approve(newSub.address, 200, { from: user })
+      })
+
+      it('should revert the transaction', async () => {
+        expect(await reverted(newSub.migrate(200, { from: user }))).to.be.true()
+      })
+    })
+
+    describe('the end of the migration', () => {
+      before(async () => {
+        // TODO: fill this in...
+      })
+    })
   })
 })
