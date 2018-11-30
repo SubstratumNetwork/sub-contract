@@ -176,7 +176,7 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user, migrator]) =>
       before(async () => {
         await oldSub.transfer(user, 100)
         await oldSub.approve(newSub.address, 90, { from: user })
-        await newSub.migrateAll(user, { from: user })
+        await newSub.migrateAll({ from: user })
       })
 
       it("empties part of the user's old token balance", async () => {
@@ -195,7 +195,7 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user, migrator]) =>
     describe('migrate a part of the user balance', () => {
       before(async () => {
         await oldSub.approve(newSub.address, 10, { from: user })
-        await newSub.migrate(user, 10, { from: user })
+        await newSub.migrate(10, { from: user })
       })
 
       it("empties the user's old token balance", async () => {
@@ -208,26 +208,6 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user, migrator]) =>
 
       it('"burns" the old tokens', async () => {
         expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(100)
-      })
-    })
-
-    describe('delegating the migration', () => {
-      before(async () => {
-        await oldSub.transfer(user, 100)
-        await oldSub.approve(newSub.address, 100, { from: user })
-        await newSub.migrateAll(user, { from: migrator })
-      })
-
-      it("empties the user's old token balance", async () => {
-        expect((await oldSub.balanceOf(user)).toNumber()).to.equal(0)
-      })
-
-      it('awards the user new tokens', async () => {
-        expect((await newSub.balanceOf(user)).toNumber()).to.equal(200)
-      })
-
-      it('"burns" the old tokens', async () => {
-        expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(200)
       })
     })
   })

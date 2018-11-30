@@ -37,28 +37,28 @@ contract Substratum is ERC20Burnable, Ownable {
     }
 
     /**
-     * @dev Transfers part of an account's balance in the old token to this
-     * contract, and transfers the same amount of new tokens for that account.
+     * @dev Transfers part of your balance of old token to this
+     * contract, and transfers the same amount of new tokens back to you.
      * The amount should first be approved for this contract address.
-     * @param account whose tokens will be migrated
      * @param amount amount of tokens to be migrated
      */
-    function migrate(address account, uint256 amount) public {
+    function migrate(uint256 amount) public {
+        address account = msg.sender;
         _legacyToken.transferFrom(account, this, amount);
         this.transferFrom(owner(), account, amount);
     }
 
     /**
-     * @dev Transfers all of an account's balance in the old token to
-     * this contract, and transfers the same amount of new tokens for that account.
+     * @dev Transfers all of your balance of old tokens to
+     * this contract, and transfers the same amount of new tokens back to you.
      * The amount should first be approved for this contract address. If less than
      * the full amount is approved then the approval amount will be migrated.
-     * @param account whose tokens will be migrated
      */
-    function migrateAll(address account) public {
+    function migrateAll() public {
+        address account = msg.sender;
         uint256 balance = _legacyToken.balanceOf(account);
         uint256 allowance = _legacyToken.allowance(account, this);
         uint256 amount = Math.min(balance, allowance);
-        migrate(account, amount);
+        migrate(amount);
     }
 }
