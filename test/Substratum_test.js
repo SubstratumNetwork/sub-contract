@@ -23,13 +23,19 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user]) => {
   let newSub, oldSub
   let SubstratumNewWeb3
 
-  before(async () => {
-    oldSub = await OldSubstratum.new(59200000000, 'Substratum', 2, 'SUB', { from: owner })
-    newSub = await NewSubstratum.new(oldSub.address, { from: owner })
-    SubstratumNewWeb3 = new newWeb3.eth.Contract(newSub.abi, newSub.address)
+  describe('can not create the new contract specifying a zero address for the legacy token', () => {
+    it('rejects the contract creation', async () => {
+      expect(await reverted(NewSubstratum.new(ZERO_ADDRESS, { from: owner }))).to.be.true()
+    })
   })
 
   describe('deployed contract', () => {
+    before(async () => {
+      oldSub = await OldSubstratum.new(59200000000, 'Substratum', 2, 'SUB', { from: owner })
+      newSub = await NewSubstratum.new(oldSub.address, { from: owner })
+      SubstratumNewWeb3 = new newWeb3.eth.Contract(newSub.abi, newSub.address)
+    })
+
     it('has the name Substratum', async () => {
       expect(await newSub.name()).to.equal('Substratum')
     })
@@ -166,7 +172,6 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user]) => {
   })
 
   describe('token swap', () => {
-    // TODO: test for sending in zero-address legacyToken
     describe('migrateAll for a partial approval', () => {
       before(async () => {
         await oldSub.transfer(user, 100)

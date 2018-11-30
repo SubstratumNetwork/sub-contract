@@ -16,23 +16,45 @@ contract Substratum is ERC20Burnable, Ownable {
     uint256 public constant INITIAL_SUPPLY = 472000000000000000000000000;
 
     constructor(IERC20 legacyToken) public {
+        require(legacyToken != address(0));
         _legacyToken = legacyToken;
         ERC20.approve(this, INITIAL_SUPPLY);
 
         ERC20._mint(msg.sender, INITIAL_SUPPLY);
     }
 
-    function approve(address _spender, uint256 _value) public returns (bool) {
-        require(_value == 0 || allowance(msg.sender, _spender) == 0, "Use increaseApproval or decreaseApproval to prevent double-spend.");
+    /**
+     * @dev Approve the passed address to spend the specified amount of tokens on behalf of msg.sender.
+     * Requires no previous allowance to prevent a race condition with multiple approvals.
+     * See https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     * @param spender The address which will spend the funds.
+     * @param value The amount of tokens to be spent.
+     */
+    function approve(address spender, uint256 value) public returns (bool) {
+        require(value == 0 || allowance(msg.sender, spender) == 0, "Use increaseApproval or decreaseApproval to prevent double-spend.");
 
-        return ERC20.approve(_spender, _value);
+        return ERC20.approve(spender, value);
     }
 
+    /**
+     * @dev Transfers part of an account's balance in the old token to this
+     * contract, and transfers the same amount of new tokens for that account.
+     * The amount should first be approved for this contract address.
+     * @param account whose tokens will be migrated
+     * @param amount amount of tokens to be migrated
+     */
     function migrate(address account, uint256 amount) public {
         _legacyToken.transferFrom(account, this, amount);
         this.transferFrom(owner(), account, amount);
     }
 
+    /**
+     * @dev Transfers all of an account's balance in the old token to
+     * this contract, and transfers the same amount of new tokens for that account.
+     * The amount should first be approved for this contract address. If less than
+     * the full amount is approved then the approval amount will be migrated.
+     * @param account whose tokens will be migrated
+     */
     function migrateAll(address account) public {
         uint256 balance = _legacyToken.balanceOf(account);
         uint256 allowance = _legacyToken.allowance(account, this);
