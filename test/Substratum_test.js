@@ -13,39 +13,41 @@ const truffleAssert = require('truffle-assertions')
 const reverted = require('./helpers/reverted')
 const toWei = require('./helpers/toWei')
 
-const Substratum = artifacts.require('Substratum')
+const OldSubstratum = artifacts.require('MyAdvancedToken')
+const NewSubstratum = artifacts.require('Substratum')
 
 const INITIAL_WEI_SUPPLY = new BigNumber('472e24')
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
-contract('Substratum', ([owner, otherAccount, buyer, seller]) => {
-  let subject
+contract('Substratum', ([owner, otherAccount, buyer, seller, user]) => {
+  let newSub, oldSub
   let SubstratumNewWeb3
 
   before(async () => {
-    subject = await Substratum.new({ from: owner })
-    SubstratumNewWeb3 = new newWeb3.eth.Contract(subject.abi, subject.address)
+    oldSub = await OldSubstratum.new(59200000000, 'Substratum', 2, 'SUB', { from: owner })
+    newSub = await NewSubstratum.new(oldSub.address, { from: owner })
+    SubstratumNewWeb3 = new newWeb3.eth.Contract(newSub.abi, newSub.address)
   })
 
   describe('deployed contract', () => {
     it('has the name Substratum', async () => {
-      expect(await subject.name()).to.equal('Substratum')
+      expect(await newSub.name()).to.equal('Substratum')
     })
 
     it('has the symbol SUB', async () => {
-      expect(await subject.symbol()).to.equal('SUB')
+      expect(await newSub.symbol()).to.equal('SUB')
     })
 
     it('has 18 decimal precision', async () => {
-      expect((await subject.decimals()).toNumber()).to.equal(18)
+      expect((await newSub.decimals()).toNumber()).to.equal(18)
     })
 
     it('starts with a total supply of 472 million', async () => {
-      expect(await subject.totalSupply()).to.be.bignumber.equal(toWei('472e6'))
+      expect(await newSub.totalSupply()).to.be.bignumber.equal(toWei('472e6'))
     })
 
     it('starts with owner balance at 472 million', async () => {
-      expect(await subject.balanceOf(owner)).to.be.bignumber.equal(toWei('472e6'))
+      expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(toWei('472e6'))
     })
 
     it('emits an event for token creation', async () => {
@@ -58,29 +60,29 @@ contract('Substratum', ([owner, otherAccount, buyer, seller]) => {
     })
 
     it('should reject receiving ETH to the fallback function', async () => {
-      expect(await reverted(subject.sendTransaction({ value: 1 }))).to.be.true()
+      expect(await reverted(newSub.sendTransaction({ value: 1 }))).to.be.true()
     })
   })
 
   describe('token burn', () => {
     it('cannot burn more than owner has', async () => {
-      const initialOwnerAmount = await subject.balanceOf(owner)
+      const initialOwnerAmount = await newSub.balanceOf(owner)
       const transferAmount = initialOwnerAmount.dividedBy(2)
-      await subject.transfer(otherAccount, transferAmount)
-      const expectedOwnerAmount = await subject.balanceOf(owner)
+      await newSub.transfer(otherAccount, transferAmount)
+      const expectedOwnerAmount = await newSub.balanceOf(owner)
       const amountToBurn = initialOwnerAmount.plus(1)
 
-      expect(await reverted(subject.burn(amountToBurn))).to.be.true()
+      expect(await reverted(newSub.burn(amountToBurn))).to.be.true()
 
-      expect(await subject.balanceOf(owner)).to.be.bignumber.equal(expectedOwnerAmount)
-      expect(await subject.totalSupply()).to.be.bignumber.equal(INITIAL_WEI_SUPPLY)
+      expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(expectedOwnerAmount)
+      expect(await newSub.totalSupply()).to.be.bignumber.equal(INITIAL_WEI_SUPPLY)
     })
 
     it('can burn an amount that owner has', async () => {
-      const initialTotalSupply = await subject.totalSupply()
-      const initialOwnerAmount = await subject.balanceOf(owner)
+      const initialTotalSupply = await newSub.totalSupply()
+      const initialOwnerAmount = await newSub.balanceOf(owner)
       const burntAmount = 750
-      const tx = await subject.burn(burntAmount)
+      const tx = await newSub.burn(burntAmount)
 
       truffleAssert.eventEmitted(tx, 'Transfer', event => {
         return event.from === owner &&
@@ -88,78 +90,101 @@ contract('Substratum', ([owner, otherAccount, buyer, seller]) => {
           event.value.eq(burntAmount)
       })
 
-      expect(await subject.balanceOf(owner)).to.be.bignumber.equal(initialOwnerAmount.minus(burntAmount))
-      expect(await subject.totalSupply()).to.be.bignumber.equal(initialTotalSupply.minus(burntAmount))
+      expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(initialOwnerAmount.minus(burntAmount))
+      expect(await newSub.totalSupply()).to.be.bignumber.equal(initialTotalSupply.minus(burntAmount))
     })
   })
 
   describe('contract', async () => {
     it('allows transfers from any account', async () => {
-      const initialOwnerAmount = await subject.balanceOf(owner)
-      const initialOtherAmount = await subject.balanceOf(otherAccount)
+      const initialOwnerAmount = await newSub.balanceOf(owner)
+      const initialOtherAmount = await newSub.balanceOf(otherAccount)
       const transferAmount = 600
 
-      await subject.transfer(owner, transferAmount, { from: otherAccount })
+      await newSub.transfer(owner, transferAmount, { from: otherAccount })
 
-      expect(await subject.balanceOf(otherAccount)).to.be.bignumber.equal(initialOtherAmount.minus(transferAmount))
-      expect(await subject.balanceOf(owner)).to.be.bignumber.equal(initialOwnerAmount.plus(transferAmount))
+      expect(await newSub.balanceOf(otherAccount)).to.be.bignumber.equal(initialOtherAmount.minus(transferAmount))
+      expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(initialOwnerAmount.plus(transferAmount))
     })
 
     it('does not allow transferring more than the balance', async () => {
-      expect(await reverted(subject.transfer(owner, 1, { from: otherAccount })))
+      expect(await reverted(newSub.transfer(owner, 1, { from: otherAccount })))
     })
 
     it('can transfer approved funds', async () => {
-      const initialOwnerBalance = await subject.balanceOf(owner)
-      const initialSellerBalance = await subject.balanceOf(seller)
+      const initialOwnerBalance = await newSub.balanceOf(owner)
+      const initialSellerBalance = await newSub.balanceOf(seller)
       const transferAmount = 10000
-      await subject.approve(buyer, transferAmount)
-      await subject.transferFrom(owner, seller, transferAmount, { from: buyer })
+      await newSub.approve(buyer, transferAmount)
+      await newSub.transferFrom(owner, seller, transferAmount, { from: buyer })
 
-      expect(await subject.balanceOf(seller)).to.be.bignumber.equal(initialSellerBalance.plus(transferAmount))
-      expect(await subject.balanceOf(owner)).to.be.bignumber.equal(initialOwnerBalance.minus(transferAmount))
+      expect(await newSub.balanceOf(seller)).to.be.bignumber.equal(initialSellerBalance.plus(transferAmount))
+      expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(initialOwnerBalance.minus(transferAmount))
     })
 
     it('can transfer approved funds in chunks', async () => {
-      let initialOwnerBalance = await subject.balanceOf(owner)
-      const initialSellerBalance = await subject.balanceOf(seller)
+      let initialOwnerBalance = await newSub.balanceOf(owner)
+      const initialSellerBalance = await newSub.balanceOf(seller)
       const totalTransferAmount = 10000
-      await subject.approve(buyer, totalTransferAmount, { from: owner })
-      await subject.transferFrom(owner, seller, 4000, { from: buyer })
-      await subject.transferFrom(owner, seller, 6000, { from: buyer })
+      await newSub.approve(buyer, totalTransferAmount, { from: owner })
+      await newSub.transferFrom(owner, seller, 4000, { from: buyer })
+      await newSub.transferFrom(owner, seller, 6000, { from: buyer })
 
-      expect(await subject.balanceOf(seller)).to.be.bignumber.equal(initialSellerBalance.plus(totalTransferAmount))
-      expect(await subject.balanceOf(owner)).to.be.bignumber.equal(initialOwnerBalance.minus(totalTransferAmount))
+      expect(await newSub.balanceOf(seller)).to.be.bignumber.equal(initialSellerBalance.plus(totalTransferAmount))
+      expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(initialOwnerBalance.minus(totalTransferAmount))
     })
 
     it('can not transfer funds that have not been approved', async () => {
-      expect(await reverted(subject.transferFrom(owner, seller, 20000, { from: buyer }))).to.be.true()
+      expect(await reverted(newSub.transferFrom(owner, seller, 20000, { from: buyer }))).to.be.true()
     })
 
     it('can not do the transfer if not enough has been approved', async () => {
-      await subject.approve(buyer, 10000, { from: owner })
-      expect(await reverted(subject.transferFrom(owner, seller, 200000, { from: buyer }))).to.be.true()
+      await newSub.approve(buyer, 10000, { from: owner })
+      expect(await reverted(newSub.transferFrom(owner, seller, 200000, { from: buyer }))).to.be.true()
     })
 
     it('can not transfer approved funds if balance is too low', async () => {
-      let balance = await subject.balanceOf(owner)
-      await subject.approve(buyer, 0, { from: owner })
-      await subject.approve(buyer, balance, { from: owner })
+      let balance = await newSub.balanceOf(owner)
+      await newSub.approve(buyer, 0, { from: owner })
+      await newSub.approve(buyer, balance, { from: owner })
 
-      await subject.transfer(otherAccount, balance / 2, { from: owner })
-      expect(await reverted(subject.transferFrom(owner, seller, balance, { from: buyer }))).to.be.true()
+      await newSub.transfer(otherAccount, balance / 2, { from: owner })
+      expect(await reverted(newSub.transferFrom(owner, seller, balance, { from: buyer }))).to.be.true()
     })
 
     it('reverts 2nd non-zero approve calls to prevent double-spend race condition', async () => {
       let approvedAmount = 10000
       let spender = buyer
 
-      await subject.approve(spender, 0, { from: owner })
-      await subject.approve(spender, approvedAmount, { from: owner })
-      expect(await subject.allowance(owner, spender)).to.be.bignumber.equal(approvedAmount)
+      await newSub.approve(spender, 0, { from: owner })
+      await newSub.approve(spender, approvedAmount, { from: owner })
+      expect(await newSub.allowance(owner, spender)).to.be.bignumber.equal(approvedAmount)
 
-      expect(await reverted(subject.approve(spender, approvedAmount, { from: owner }))).to.be.true()
-      expect(await subject.allowance(owner, spender)).to.be.bignumber.equal(approvedAmount)
+      expect(await reverted(newSub.approve(spender, approvedAmount, { from: owner }))).to.be.true()
+      expect(await newSub.allowance(owner, spender)).to.be.bignumber.equal(approvedAmount)
+    })
+  })
+
+  describe('token swap', () => {
+    // TODO: test for sending in zero-address legacyToken
+    describe('migrateAll for a partial approval', () => {
+      before(async () => {
+        await oldSub.transfer(user, 100)
+        await oldSub.approve(newSub.address, 90, { from: user })
+        await newSub.migrateAll(user, { from: user })
+      })
+
+      it("empties part of the user's old token balance", async () => {
+        expect((await oldSub.balanceOf(user)).toNumber()).to.equal(10)
+      })
+
+      it('awards the user new tokens', async () => {
+        expect((await newSub.balanceOf(user)).toNumber()).to.equal(90)
+      })
+
+      it('"burns" the old tokens', async () => {
+        expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(90)
+      })
     })
   })
 })
