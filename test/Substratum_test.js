@@ -19,7 +19,7 @@ const NewSubstratum = artifacts.require('Substratum')
 const INITIAL_WEI_SUPPLY = new BigNumber('472e24')
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
-contract('Substratum', ([owner, otherAccount, buyer, seller, user]) => {
+contract('Substratum', ([owner, otherAccount, buyer, seller, user, migrator]) => {
   let newSub, oldSub
   let SubstratumNewWeb3
 
@@ -208,6 +208,26 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user]) => {
 
       it('"burns" the old tokens', async () => {
         expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(100)
+      })
+    })
+
+    describe('delegating the migration', () => {
+      before(async () => {
+        await oldSub.transfer(user, 100)
+        await oldSub.approve(newSub.address, 100, { from: user })
+        await newSub.migrateAll(user, { from: migrator })
+      })
+
+      it("empties the user's old token balance", async () => {
+        expect((await oldSub.balanceOf(user)).toNumber()).to.equal(0)
+      })
+
+      it('awards the user new tokens', async () => {
+        expect((await newSub.balanceOf(user)).toNumber()).to.equal(200)
+      })
+
+      it('"burns" the old tokens', async () => {
+        expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(200)
       })
     })
   })
