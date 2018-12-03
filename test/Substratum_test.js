@@ -19,7 +19,7 @@ const NewSubstratum = artifacts.require('Substratum')
 const INITIAL_WEI_SUPPLY = new BigNumber('472e24')
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
-contract('Substratum', ([owner, otherAccount, buyer, seller, user, migrator]) => {
+contract('Substratum', ([owner, otherAccount, buyer, seller, user]) => {
   let newSub, oldSub
   let SubstratumNewWeb3
 
@@ -172,69 +172,178 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user, migrator]) =>
   })
 
   describe('token swap', () => {
-    describe('migrateAll for a partial approval', () => {
+
+    describe('migrateAll for a full approval', () => {
       before(async () => {
-        await oldSub.transfer(user, 100)
-        await oldSub.approve(newSub.address, 90, { from: user })
+        await oldSub.transfer(user, 1e2) // one old sub
+        await oldSub.approve(newSub.address, 1e2, { from: user })
         await newSub.migrateAll({ from: user })
       })
 
-      it("empties part of the user's old token balance", async () => {
-        expect((await oldSub.balanceOf(user)).toNumber()).to.equal(10)
+      it("empties the user's old token balance", async () => {
+        expect(await oldSub.balanceOf(user)).to.be.bignumber.equal(0)
       })
 
       it('awards the user new tokens', async () => {
-        expect((await newSub.balanceOf(user)).toNumber()).to.equal(90)
+        expect(await newSub.balanceOf(user)).to.be.bignumber.equal(1e18) // one new sub
       })
 
       it('"burns" the old tokens', async () => {
-        expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(90)
+        expect(await oldSub.balanceOf(newSub.address)).to.be.bignumber.equal(1e2)
+      })
+    })
+
+    describe('migrateAll for a partial approval', () => {
+      before(async () => {
+        await oldSub.transfer(user, 1e2)
+        await oldSub.approve(newSub.address, 0.9e2, { from: user })
+        await newSub.migrateAll({ from: user })
+      })
+
+      it('empties part of the user\'s old token balance', async () => {
+        expect(await oldSub.balanceOf(user)).to.be.bignumber.equal(0.1e2)
+      })
+
+      it('awards the user new tokens', async () => {
+        expect(await newSub.balanceOf(user)).to.be.bignumber.equal(1.9e18)
+      })
+
+      it('"burns" the old tokens', async () => {
+        expect(await oldSub.balanceOf(newSub.address)).to.be.bignumber.equal(1.9e2)
       })
     })
 
     describe('migrate a part of the user balance', () => {
       before(async () => {
-        await oldSub.approve(newSub.address, 10, { from: user })
-        await newSub.migrate(10, { from: user })
+        await oldSub.approve(newSub.address, 0.1e2, { from: user })
+        await newSub.migrate(0.1e2, { from: user })
       })
 
       it("empties the user's old token balance", async () => {
-        expect((await oldSub.balanceOf(user)).toNumber()).to.equal(0)
+        expect(await oldSub.balanceOf(user)).to.be.bignumber.equal(0)
       })
 
       it('awards the user new tokens', async () => {
-        expect((await newSub.balanceOf(user)).toNumber()).to.equal(100)
+        expect(await newSub.balanceOf(user)).to.be.bignumber.equal(2e18)
       })
 
       it('"burns" the old tokens', async () => {
-        expect((await oldSub.balanceOf(newSub.address)).toNumber()).to.equal(100)
+        expect(await oldSub.balanceOf(newSub.address)).to.be.bignumber.equal(2e2)
       })
     })
 
     describe('trying to migrate more than what was approved', () => {
       before(async () => {
-        await oldSub.transfer(user, 100)
-        await oldSub.approve(newSub.address, 10, { from: user })
+        await oldSub.transfer(user, 1e2)
+        await oldSub.approve(newSub.address, 0.1e2, { from: user })
       })
 
       it('should revert the transaction', async () => {
-        expect(await reverted(newSub.migrate(20, { from: user }))).to.be.true()
+        expect(await reverted(newSub.migrate(0.2e2, { from: user }))).to.be.true()
       })
     })
 
     describe('trying to migrate more than the balance', () => {
       before(async () => {
-        await oldSub.approve(newSub.address, 200, { from: user })
+        await oldSub.approve(newSub.address, 2e2, { from: user })
       })
 
       it('should revert the transaction', async () => {
-        expect(await reverted(newSub.migrate(200, { from: user }))).to.be.true()
+        expect(await reverted(newSub.migrate(2e2, { from: user }))).to.be.true()
       })
     })
 
     describe('the end of the migration', () => {
-      before(async () => {
-        // TODO: fill this in...
+      describe('owner balance and approved amounts out of sync', () => {
+        let newSubToAward, oldSubToMigrate
+
+        before(async () => {
+          oldSub = await OldSubstratum.new(59200000000, 'Substratum', 2, 'SUB', { from: owner })
+          newSub = await NewSubstratum.new(oldSub.address, { from: owner })
+
+          let newSubOwnerBalance = (await newSub.balanceOf(owner))
+          oldSubToMigrate = newSubOwnerBalance.times(new BigNumber('1e-16'))
+          newSubToAward = newSubOwnerBalance.minus(new BigNumber('1e18'))
+
+          await newSub.transfer(otherAccount, new BigNumber('1e18')) // balance and approved now out of sync
+
+          await oldSub.transfer(user, oldSubToMigrate)
+          await oldSub.approve(newSub.address, oldSubToMigrate, { from: user })
+          await newSub.migrateAll({ from: user })
+        })
+
+        describe('the new balances', async () => {
+          it("empties the user's old token balance", async () => {
+            expect(await oldSub.balanceOf(user)).to.be.bignumber.equal(0)
+          })
+
+          it('awards the user new tokens', async () => {
+            expect(await newSub.balanceOf(user)).to.be.bignumber.equal(newSubToAward)
+          })
+
+          it('"burns" the old tokens', async () => {
+            expect(await oldSub.balanceOf(newSub.address)).to.be.bignumber.equal(oldSubToMigrate)
+          })
+
+          it('ends up with no tokens in owner wallet', async () => {
+            expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(0)
+          })
+        })
+
+        describe('trying to migrate more than the owner balance', () => {
+          before(async () => {
+            // we can do this because old sub had more tokens available to owner
+            await oldSub.transfer(user, 1e2)
+            await oldSub.approve(newSub.address, 1e2, { from: user })
+          })
+
+          it('rejects the transaction', async () => {
+            expect(await reverted(newSub.migrateAll({ from: user })))
+          })
+        })
+      })
+
+      describe('owner balance and approved amounts are in sync', () => {
+        before(async () => {
+          oldSub = await OldSubstratum.new(59200000000, 'Substratum', 2, 'SUB', { from: owner })
+          newSub = await NewSubstratum.new(oldSub.address, { from: owner })
+
+          let newSubOwnerBalance = (await newSub.balanceOf(owner))
+          let oldSubOwnerBalance = newSubOwnerBalance.times(new BigNumber('1e-16'))
+          await oldSub.transfer(user, oldSubOwnerBalance)
+          await oldSub.approve(newSub.address, oldSubOwnerBalance, { from: user })
+          await newSub.migrateAll({ from: user })
+        })
+
+        describe('the new balances', async () => {
+          it("empties the user's old token balance", async () => {
+            expect(await oldSub.balanceOf(user)).to.be.bignumber.equal(0)
+          })
+
+          it('awards the user new tokens', async () => {
+            expect(await newSub.balanceOf(user)).to.be.bignumber.equal(472000000e18)
+          })
+
+          it('"burns" the old tokens', async () => {
+            expect(await oldSub.balanceOf(newSub.address)).to.be.bignumber.equal(472000000e2)
+          })
+
+          it('ends up with no tokens in owner wallet', async () => {
+            expect(await newSub.balanceOf(owner)).to.be.bignumber.equal(0)
+          })
+        })
+
+        describe('trying to migrate more than the owner balance', () => {
+          before(async () => {
+            // we can do this because old sub had more tokens available to owner
+            await oldSub.transfer(user, 1e2)
+            await oldSub.approve(newSub.address, 1e2, { from: user })
+          })
+
+          it('rejects the transaction', async () => {
+            expect(await reverted(newSub.migrateAll({ from: user })))
+          })
+        })
       })
     })
   })

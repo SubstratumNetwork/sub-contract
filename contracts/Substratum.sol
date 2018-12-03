@@ -1,6 +1,7 @@
 pragma solidity 0.4.24;
 
 import "openzeppelin-solidity/contracts/math/Math.sol";
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20.sol";
 import "openzeppelin-solidity/contracts/token/ERC20/ERC20Burnable.sol";
@@ -14,6 +15,9 @@ contract Substratum is ERC20Burnable, Ownable {
 
     // 472 million tokens * decimal places (10^18)
     uint256 public constant INITIAL_SUPPLY = 472000000000000000000000000;
+
+    // for converting old token wei to new since decimal precision is increased
+    uint256 public constant MIGRATE_RATIO = 10000000000000000;
 
     constructor(IERC20 legacyToken) public {
         require(legacyToken != address(0));
@@ -45,7 +49,8 @@ contract Substratum is ERC20Burnable, Ownable {
     function migrate(uint256 amount) public {
         address account = msg.sender;
         _legacyToken.transferFrom(account, this, amount);
-        this.transferFrom(owner(), account, amount);
+        uint256 newAmount = Math.min(balanceOf(owner()), SafeMath.mul(amount, MIGRATE_RATIO));
+        this.transferFrom(owner(), account, newAmount);
     }
 
     /**
