@@ -261,11 +261,9 @@ contract('Substratum', ([owner, otherAccount, buyer, seller, user]) => {
           oldSub = await OldSubstratum.new(59200000000, 'Substratum', 2, 'SUB', { from: owner })
           newSub = await NewSubstratum.new(oldSub.address, { from: owner })
 
-          let newSubOwnerBalance = (await newSub.balanceOf(owner))
-          oldSubToMigrate = newSubOwnerBalance.times(new BigNumber('1e-16'))
-          newSubToAward = newSubOwnerBalance.minus(new BigNumber('1e18'))
-
           await newSub.transfer(otherAccount, new BigNumber('1e18')) // balance and approved now out of sync
+          newSubToAward = await newSub.balanceOf(owner)
+          oldSubToMigrate = newSubToAward.times(new BigNumber('1e-16'))
 
           await oldSub.transfer(user, oldSubToMigrate)
           await oldSub.approve(newSub.address, oldSubToMigrate, { from: user })

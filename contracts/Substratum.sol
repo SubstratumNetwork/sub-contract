@@ -49,7 +49,7 @@ contract Substratum is ERC20Burnable, Ownable {
     function migrate(uint256 amount) public {
         address account = msg.sender;
         _legacyToken.transferFrom(account, this, amount);
-        uint256 newAmount = Math.min(balanceOf(owner()), SafeMath.mul(amount, MIGRATE_RATIO));
+        uint256 newAmount = SafeMath.mul(amount, MIGRATE_RATIO);
         this.transferFrom(owner(), account, newAmount);
     }
 
